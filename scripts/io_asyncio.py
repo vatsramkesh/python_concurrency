@@ -26,7 +26,8 @@ if __name__ == "__main__":
         "http://olympus.realpython.org/dice",
     ] * 20
     start_time = time.time()
-    download_all_sites(sites)
-    asyncio.get_event_loop().run_until_complete(download_all_sites(sites))
+    # download_all_sites(sites)
+    # asyncio.get_event_loop().run_until_complete(download_all_sites(sites))
+    asyncio.run(download_all_sites(sites))
     duration = time.time() - start_time
     print(f"Downloaded {len(sites)} in {duration} seconds")
