@@ -1,5 +1,6 @@
 # Require Python 3.6+
 
 aiohttp==3.4.4
-requests==2.19.1
+requests==2.20.0
+aiofiles==0.4.0
 
