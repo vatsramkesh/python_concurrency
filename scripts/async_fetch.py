@@ -1,8 +1,11 @@
 
 import pathlib
 from typing import IO
+import urllib.error
+import urllib.parse
 import sys
 
+import re
 import logging
 import asyncio
 from aiohttp import ClientSession
@@ -17,6 +20,8 @@ logging.basicConfig(
 logger = logging.getLogger("areq")
 logging.getLogger("chardet.charsetprober").disabled = True
 
+HREF_RE = re.compile(r'href="(.*?)"')
+
 
 def main():
     file_path = pathlib.Path(__file__).parent
@@ -30,7 +35,7 @@ def main():
     asyncio.run(bulk_crawl_and_write(outfile, urls))
 
 
-async def bulk_crawl_and_write(file: IO, urls: set):
+async def bulk_crawl_and_write(file, urls: set):
     async with ClientSession() as session:
         tasks = []
         for url in urls:
@@ -43,13 +48,18 @@ async def bulk_crawl_and_write(file: IO, urls: set):
 
 
 async def fetch_url(url: str, session: ClientSession):
-    raise NotImplementedError
+    resp = await session.request(method="GET", url=url)
+    print(resp)
+    resp.raise_for_status()
+    logger.info("Got response [%s] for URL: %s", resp.status, url)
+    text = await resp.text()
+    return text
 
 
 async def parse_html(url: str, session: ClientSession):
     found = set()
     try:
-        response = await fetch_url(url=url, session=session)
+        text_response = await fetch_url(url=url, session=session)
     except (
             aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError
     ) as e:
@@ -66,11 +76,19 @@ async def parse_html(url: str, session: ClientSession):
         )
         return found
     else:
-        # Actual  parsing for HTML
-        pass
+        for href in HREF_RE.findall(text_response):
+            try:
+                abslink = urllib.parse.urljoin(url, href)
+            except (urllib.error.URLError, ValueError):
+                logger.exception("Error parsing URL: %s", href)
+                pass
+            else:
+                found.add(abslink)
+        logger.info("Found %d links for %s", len(found), url)
+        return found
 
 
-async def write_one(file: IO, url: str, session: ClientSession):
+async def write_one(file, url: str, session: ClientSession):
     res = await fetch_url(
         url=url, session=session
     )
@@ -81,3 +99,8 @@ async def write_one(file: IO, url: str, session: ClientSession):
             await f.write(f"{url}\t{content}\n")
         logger.info("Wrote results for source URL: %s", url)
 
+
+main()
+
+# https://docs.python.org/3/this-url-will-404.html
+# https://www.bloomberg.com/markets/economics
